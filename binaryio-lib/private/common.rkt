@@ -1,7 +1,8 @@
 #lang racket/base
 (provide (all-defined-out))
 
-(struct exn:fail:read:binaryio exn:fail:read (info) #:transparent)
+(struct exn:fail:binaryio exn:fail (info) #:transparent)
+(struct exn:fail:binaryio:eof exn:fail:binaryio (position wanted-bytes received-bytes) #:transparent)
 
 ;; FIXME: make custom exn struct
 (define (error/insufficient who port len r)
@@ -14,13 +15,14 @@
             len (if (bytes? r) (bytes-length r) 0) r))
   (define-values (_line _column position) (port-next-location port))
   (define start-position (- position received-bytes))
-  (define loc (srcloc (object-name port) #f #f start-position received-bytes))
-  (raise (exn:fail:read:binaryio
+  (raise (exn:fail:binaryio:eof
           message
           (current-continuation-marks)
-          (list loc)
-          `([wanted-bytes . ,wanted-bytes]
-            [received . ,r]))))
+          `([start-position . ,start-position]
+            [wanted-bytes . ,wanted-bytes]
+            [received-bytes . ,received-bytes]
+            [received . ,r])
+          start-position wanted-bytes received-bytes)))
 
 ;; ----
 
