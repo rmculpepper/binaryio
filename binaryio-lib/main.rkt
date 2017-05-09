@@ -12,3 +12,9 @@
 
 ;; null-terminated-{string,bytes}
 ;; {string,bytes}-to-eof
+
+
+;; Convention on argument order:
+;; - VALUE is always first in write-X
+;; - PORT is always first optional argument (for consistency w/ Racket)
+;; - no keyword arguments unless extraordinary need

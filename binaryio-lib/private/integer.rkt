@@ -1,82 +1,26 @@
 #lang racket/base
+(require "common.rkt")
 (provide integer->bytes
          bytes->integer
 
-         int1?  int2?  int3?  int4?  int8?  make-intN?
-         uint1? uint2? uint3? uint4? uint8? make-uintN?
+         int1?  int2?  int3?  int4?  int8?
+         uint1? uint2? uint3? uint4? uint8?
 
-         write-int1
-         write-int2
-         write-int3
-         write-int4
-         write-int8
-         write-intN
+         integer-fits-bytes?
 
-         write-uint1
-         write-uint2
-         write-uint3
-         write-uint4
-         write-uint8
-         write-uintN
+         write-int
+         write-uint
+         write-le-int
+         write-le-uint
 
-         read-int1
-         read-int2
-         read-int3
-         read-int4
-         read-int8
-         read-intN
-
-         read-uint1
-         read-uint2
-         read-uint3
-         read-uint4
-         read-uint8
-         read-uintN
-
-         write-le-int1
-         write-le-int2
-         write-le-int3
-         write-le-int4
-         write-le-int8
-         write-le-intN
-
-         write-le-uint1
-         write-le-uint2
-         write-le-uint3
-         write-le-uint4
-         write-le-uint8
-         write-le-uintN
-
-         read-le-int1
-         read-le-int2
-         read-le-int3
-         read-le-int4
-         read-le-int8
-         read-le-intN
-
-         read-le-uint1
-         read-le-uint2
-         read-le-uint3
-         read-le-uint4
-         read-le-uint8
-         read-le-uintN)
+         read-int
+         read-uint
+         read-le-int
+         read-le-uint)
 
 
 ;; ============================================================
 ;; Internal
-
-;; -read-bytes : InputPort Nat -> Bytes
-(define (-read-bytes who port len)
-  (define r (read-bytes len port))
-  (if (and (bytes? r) (= (bytes-length r) len))
-      r
-      (error/insufficient who port len r)))
-
-;; FIXME: make custom exn struct
-(define (error/insufficient who port len r)
-  (error who
-         "unexpected end of input\n  tried to read: ~s bytes\n  available: ~s bytes\n  received: ~e"
-         len (if (bytes? r) (bytes-length r) 0) r))
 
 ;; quotient/round-up : Nat Nat -> Nat
 (define (quotient/round-up n d)
@@ -89,31 +33,79 @@
 ;; ============================================================
 ;; Predicates
 
-(define-syntax-rule (mkintN? nbytes)
-  (let* ([nbits (* nbytes 8)]
-         [hi  (- (expt 2 (sub1 nbits)) 1)]
-         [low (- (expt 2 (sub1 nbits)))])
-    (lambda (x) (and (exact-integer? x) (<= low x hi)))))
+(define (int-fits-bytes? val size)
+  (case size ;; for common cases, precompute & avoid bignum alloc (8, maybe 4)
+    [(1) (<= (- (expt 2 7))   val  (sub1 (expt 2 7)))]
+    [(2) (<= (- (expt 2 15))  val  (sub1 (expt 2 15)))]
+    [(3) (<= (- (expt 2 23))  val  (sub1 (expt 2 23)))]
+    [(4) (<= (- (expt 2 31))  val  (sub1 (expt 2 31)))]
+    [(8) (<= (- (expt 2 63))  val  (sub1 (expt 2 63)))]
+    [else
+     #|
+     (let ([nbits-1 (sub1 (arithmetic-shift size 3))])
+       (<= (- (arithmetic-shift 1 nbits-1))
+           val
+           (sub1 (arithmetic-shift 1 nbits-1))))
+     |#
+     ;; use integer-length to avoid bignum alloc for range (FIXME: test speed)
+     (define nbits (arithmetic-shift size 3))
+     (define val-nbits (add1 (integer-length val))) ;; +1 for sign bit
+     (<= val-nbits nbits)]))
 
-(define-syntax-rule (mkuintN? nbytes)
-  (let* ([nbits (* nbytes 8)]
-         [hi (- (expt 2 nbits) 1)])
-    (lambda (x) (and (exact-integer? x) (<= 0 x hi)))))
+(define (int1? val) (int-fits-bytes? val 1))
+(define (int2? val) (int-fits-bytes? val 2))
+(define (int3? val) (int-fits-bytes? val 3))
+(define (int4? val) (int-fits-bytes? val 4))
+(define (int8? val) (int-fits-bytes? val 8))
 
-(define int1? (mkintN? 8))
-(define int2? (mkintN? 16))
-(define int3? (mkintN? 24))
-(define int4? (mkintN? 32))
-(define int8? (mkintN? 64))
-(define (make-intN? n) (mkintN? n))
+;; ----------------------------------------
 
-(define uint1? (mkuintN? 8))
-(define uint2? (mkuintN? 16))
-(define uint3? (mkuintN? 24))
-(define uint4? (mkuintN? 32))
-(define uint8? (mkuintN? 64))
-(define (make-uintN? n) (mkuintN? n))
+(define (uint-fits-bytes? val size)
+  (case size ;; for common cases, precompute & avoid bignum alloc (8, maybe 4)
+    [(1) (<= 0  val  (sub1 (expt 2 8)))]
+    [(2) (<= 0  val  (sub1 (expt 2 16)))]
+    [(3) (<= 0  val  (sub1 (expt 2 24)))]
+    [(4) (<= 0  val  (sub1 (expt 2 32)))]
+    [(8) (<= 0  val  (sub1 (expt 2 64)))]
+    [else
+     #|
+     (let ([nbits (arithmetic-shift size 3)])
+       (<= 0 val (sub1 (arithmetic-shift 1 nbits))))
+     |#
+     ;; use integer-length to avoid bignum alloc for range (FIXME: test speed)
+     (and (<= 0 val)
+          (let ([nbits (arithmetic-shift size 3)]
+                [val-nbits (integer-length val)])
+            (and (<= 0 val) (<= val-nbits nbits))))]))
 
+(define (uint1? val) (uint-fits-bytes? val 1))
+(define (uint2? val) (uint-fits-bytes? val 2))
+(define (uint3? val) (uint-fits-bytes? val 3))
+(define (uint4? val) (uint-fits-bytes? val 4))
+(define (uint8? val) (uint-fits-bytes? val 8))
+
+;; ----------------------------------------
+
+(define (integer-fits-bytes? val size [signed? #t])
+  (if signed? (int-fits-bytes? val size) (uint-fits-bytes? val size)))
+
+;; ----------------------------------------
+
+(define (check-int who size val)
+  (when size
+    (unless (int-fits-bytes? val size)
+      (error/no-fit who size val #t))))
+
+(define (check-uint who size val)
+  (when size
+    (unless (uint-fits-bytes? val size)
+      (error/no-fit who size val #f))))
+
+(define (error/no-fit who size val signed?)
+  (error who (string-append "integer does not fit into requested ~a bytes"
+                            "\n  integer: ~e"
+                            "\n  requested bytes: ~e")
+         (if signed? "signed" "unsigned") val size))
 
 ;; ============================================================
 
@@ -125,6 +117,9 @@
        (max 1 (+ (integer-length val) (if signed? 1 0))))
      (integer->bytes val (quotient/round-up bits-needed 8) signed? big-endian?)]
     [else
+     (if signed?
+         (check-int 'integer->bytes size val)
+         (check-uint 'integer->bytes size val))
      (define buf (make-bytes size 0))
      (for ([i (in-range size)])
        (define bufi (if big-endian? (- size i 1) i))
@@ -146,83 +141,33 @@
             (for/fold ([acc n0]) ([b (in-bytes buf (sub1 (bytes-length buf)) -1 -1)])
               (+ b (arithmetic-shift acc 8)))])]))
 
-(define (write-int* who port size val signed? big-endian?)
-  (void (write-bytes (integer->bytes val size signed? big-endian?) port)))
-
-(define (read-int* who port size signed? big-endian?)
-  (bytes->integer (-read-bytes who size port) signed? big-endian?))
-
-(define-syntax-rule (defw write-X (pre-arg ...) size signed? big-endian?)
-  (define (write-X pre-arg ... val [port (current-output-port)])
-    (write-int* 'write-X port size val signed? big-endian?)))
-
-(define-syntax-rule (defr read-X (pre-arg ...) size signed? big-endian?)
-  (define (read-X pre-arg ... [port (current-input-port)])
-    (read-int* 'read-X port size signed? big-endian?)))
-
-
-;; ============================================================
-;; Readers and Writers
 
 ;; ----------------------------------------
-;; Network byte-order (ie, big-endian)
+;; Network order (ie, big-endian)
 
-(defw write-int1 () 1 #t #t)
-(defw write-int2 () 2 #t #t)
-(defw write-int3 () 3 #t #t)
-(defw write-int4 () 4 #t #t)
-(defw write-int8 () 8 #t #t)
-(defw write-intN (n) n #t #t)
+(define (write-int val size [port (current-output-port)])
+  (check-int 'write-int size val)
+  (void (write-bytes (integer->bytes val size #t #t) port)))
+(define (write-uint val size [port (current-output-port)])
+  (check-uint 'write-uint size val)
+  (void (write-bytes (integer->bytes val size #f #t) port)))
 
-(defw write-uint1 () 1 #f #t)
-(defw write-uint2 () 2 #f #t)
-(defw write-uint3 () 3 #f #t)
-(defw write-uint4 () 4 #f #t)
-(defw write-uint8 () 8 #f #t)
-(defw write-uintN (n) n #f #t)
-
-(defr read-int1 () 1 #t #t)
-(defr read-int2 () 2 #t #t)
-(defr read-int3 () 3 #t #t)
-(defr read-int4 () 4 #t #t)
-(defr read-int8 () 8 #t #t)
-(defr read-intN (n) n #t #t)
-
-(defr read-uint1 () 1 #f #t)
-(defr read-uint2 () 2 #f #t)
-(defr read-uint3 () 3 #f #t)
-(defr read-uint4 () 4 #f #t)
-(defr read-uint8 () 8 #f #t)
-(defr read-uintN (n) n #f #t)
-
+(define (read-int size [port (current-input-port)])
+  (bytes->integer (-read-bytes 'read-int size port) #t #t))
+(define (read-uint size [port (current-input-port)])
+  (bytes->integer (-read-bytes 'read-uint size port) #f #t))
 
 ;; ----------------------------------------
 ;; Little-endian
 
-(defw write-le-int1 () 1 #t #f)
-(defw write-le-int2 () 2 #t #f)
-(defw write-le-int3 () 3 #t #f)
-(defw write-le-int4 () 4 #t #f)
-(defw write-le-int8 () 8 #t #f)
-(defw write-le-intN (n) n #t #f)
+(define (write-le-int val size [port (current-output-port)])
+  (check-int 'write-le-int size val)
+  (void (write-bytes (integer->bytes val size #t #f) port)))
+(define (write-le-uint val size [port (current-output-port)])
+  (check-uint 'write-le-uint size val)
+  (void (write-bytes (integer->bytes val size #f #f) port)))
 
-(defw write-le-uint1 () 1 #f #f)
-(defw write-le-uint2 () 2 #f #f)
-(defw write-le-uint3 () 3 #f #f)
-(defw write-le-uint4 () 4 #f #f)
-(defw write-le-uint8 () 8 #f #f)
-(defw write-le-uintN (n) n #f #f)
-
-(defr read-le-int1 () 1 #t #f)
-(defr read-le-int2 () 2 #t #f)
-(defr read-le-int3 () 3 #t #f)
-(defr read-le-int4 () 4 #t #f)
-(defr read-le-int8 () 8 #t #f)
-(defr read-le-intN (n) n #t #f)
-
-(defr read-le-uint1 () 1 #f #f)
-(defr read-le-uint2 () 2 #f #f)
-(defr read-le-uint3 () 3 #f #f)
-(defr read-le-uint4 () 4 #f #f)
-(defr read-le-uint8 () 8 #f #f)
-(defr read-le-uintN (n) n #f #f)
+(define (read-le-int size [port (current-input-port)])
+  (bytes->integer (-read-bytes 'read-le-int size port) #t #f))
+(define (read-le-uint size [port (current-input-port)])
+  (bytes->integer (-read-bytes 'read-le-uint size port) #f #f))
