@@ -13,7 +13,7 @@
 
           [integer->bytes
            (->* [exact-integer? exact-positive-integer? boolean?]
-                [boolean? #:who symbol?]
+                [boolean? bytes? exact-nonnegative-integer? #:who symbol?]
                 bytes?)]
           [bytes->integer
            (->* [bytes? boolean?]

@@ -1,6 +1,6 @@
 #lang racket/base
 (require racket/contract/base
-         "private/integer.rkt")
+         "private/bytes.rkt")
 
 (provide (contract-out
 
@@ -14,5 +14,5 @@
                 [output-port? exact-nonnegative-integer? exact-nonnegative-integer? #:who symbol?]
                 void?)]
           [read-null-terminated-bytes
-           (->* [] [input-port? #:limit (or/c exact-nonnegative-integer +inf.0) #:who symbol?]
+           (->* [] [input-port? #:limit (or/c exact-nonnegative-integer? +inf.0) #:who symbol?]
                 bytes?)]))

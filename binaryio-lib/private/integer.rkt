@@ -99,7 +99,7 @@
 (define (integer->bytes val size signed? [big-endian? #t]
                         [dest (make-bytes size)] [start 0]
                         #:who [who 'integer->bytes])
-  (unless (< (+ start size) (bytes-length dest))
+  (unless (<= (+ start size) (bytes-length dest))
     (error who (string-append "byte string length is shorter than starting position plus size"
                               "\n  byte string length: ~s"
                               "\n  starting position: ~s"
@@ -116,14 +116,14 @@
      (cond [(or (fixnum? val) (not (negative? val)))
             (integer->bytes* val size signed? big-endian? dest start)]
            [else
-            (define val* (- (arithmetic-shift 1 size) val))
+            (define val* (+ (arithmetic-shift 1 (arithmetic-shift size 3)) val))
             (integer->bytes* val* size #f big-endian? dest start)])]))
 
 (define (integer->bytes* val size signed? big-endian? dest start)
   (for ([i (in-range size)])
     (define desti (+ start (if big-endian? (- size i 1) i)))
     (define biti (* i 8))
-    (bytes-set! buf bufi (bitwise-bit-field val biti (+ biti 8))))
+    (bytes-set! dest desti (bitwise-bit-field val biti (+ biti 8))))
   dest)
 
 ;; ----------------------------------------
@@ -141,10 +141,10 @@
      (integer-bytes->integer src signed? big-endian? start end)]
     [(0) 0]
     [else
-     (define n0 (if (and signed? (>= (bytes-ref buf start) 128)) -1 0))
+     (define (src-index i) (+ start (if big-endian? i (- size i 1))))
+     (define n0 (if (and signed? (>= (bytes-ref src (src-index 0)) 128)) -1 0))
      (for/fold ([acc n0]) ([i (in-range size)])
-       (define srci (+ start (if big-endian? i (- size i 1))))
-       (+ (bytes-ref src srci) (arithmetic-shift acc 8)))]))
+       (+ (bytes-ref src (src-index i)) (arithmetic-shift acc 8)))]))
 
 
 ;; ============================================================
