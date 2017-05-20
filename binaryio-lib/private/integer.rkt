@@ -1,23 +1,13 @@
 #lang racket/base
-(require "common.rkt")
-(provide integer->bytes
+(require "bytes.rkt")
+(provide integer-bytes-length
+         integer-bytes-length<=?
+
+         integer->bytes
          bytes->integer
 
-         int1?  int2?  int3?  int4?  int8?
-         uint1? uint2? uint3? uint4? uint8?
-
-         integer-fits-bytes?
-
-         write-int
-         write-uint
-         write-le-int
-         write-le-uint
-
-         read-int
-         read-uint
-         read-le-int
-         read-le-uint)
-
+         write-integer
+         read-integer)
 
 ;; ============================================================
 ;; Internal
@@ -26,12 +16,34 @@
 (define (quotient/round-up n d)
   (+ (quotient n d) (if (zero? (remainder n d)) 0 1)))
 
-(define (byte->int1 b)
-  (if (>= b 128) (- b 256) b))
+
+;; ============================================================
+;; Length calculation
+
+(define (int-bytes-length val)
+  (cond [(<= (- (expt 2 7))   val  (sub1 (expt 2 7)))  1]
+        [(<= (- (expt 2 15))  val  (sub1 (expt 2 15))) 2]
+        [(<= (- (expt 2 23))  val  (sub1 (expt 2 23))) 3]
+        [(<= (- (expt 2 31))  val  (sub1 (expt 2 31))) 4]
+        [else
+         (define val-nbits (add1 (integer-length val))) ;; +1 for sign bit
+         (quotient/round-up val-nbits 8)]))
+
+(define (uint-bytes-length val)
+  (cond [(<= 0  val  (sub1 (expt 2 8)))  1]
+        [(<= 0  val  (sub1 (expt 2 16))) 2]
+        [(<= 0  val  (sub1 (expt 2 24))) 3]
+        [(<= 0  val  (sub1 (expt 2 32))) 4]
+        [else
+         (define val-nbits (integer-length val)) ;; no sign bit
+         (quotient/round-up val-nbits 8)]))
+
+(define (integer-bytes-length val signed?)
+  (if signed? (int-bytes-length val) (uint-bytes-length val)))
 
 
 ;; ============================================================
-;; Predicates
+;; Length predicate
 
 (define (int-fits-bytes? val size)
   (case size ;; for common cases, precompute & avoid bignum alloc (8, maybe 4)
@@ -52,14 +64,6 @@
      (define val-nbits (add1 (integer-length val))) ;; +1 for sign bit
      (<= val-nbits nbits)]))
 
-(define (int1? val) (int-fits-bytes? val 1))
-(define (int2? val) (int-fits-bytes? val 2))
-(define (int3? val) (int-fits-bytes? val 3))
-(define (int4? val) (int-fits-bytes? val 4))
-(define (int8? val) (int-fits-bytes? val 8))
-
-;; ----------------------------------------
-
 (define (uint-fits-bytes? val size)
   (case size ;; for common cases, precompute & avoid bignum alloc (8, maybe 4)
     [(1) (<= 0  val  (sub1 (expt 2 8)))]
@@ -73,33 +77,16 @@
        (<= 0 val (sub1 (arithmetic-shift 1 nbits))))
      |#
      ;; use integer-length to avoid bignum alloc for range (FIXME: test speed)
+     ;; another idea: test (val >> nbits) is zero
      (and (<= 0 val)
           (let ([nbits (arithmetic-shift size 3)]
                 [val-nbits (integer-length val)])
             (and (<= 0 val) (<= val-nbits nbits))))]))
 
-(define (uint1? val) (uint-fits-bytes? val 1))
-(define (uint2? val) (uint-fits-bytes? val 2))
-(define (uint3? val) (uint-fits-bytes? val 3))
-(define (uint4? val) (uint-fits-bytes? val 4))
-(define (uint8? val) (uint-fits-bytes? val 8))
-
-;; ----------------------------------------
-
-(define (integer-fits-bytes? val size [signed? #t])
+(define (integer-bytes-length<=? val size signed?)
   (if signed? (int-fits-bytes? val size) (uint-fits-bytes? val size)))
 
 ;; ----------------------------------------
-
-(define (check-int who size val)
-  (when size
-    (unless (int-fits-bytes? val size)
-      (error/no-fit who size val #t))))
-
-(define (check-uint who size val)
-  (when size
-    (unless (uint-fits-bytes? val size)
-      (error/no-fit who size val #f))))
 
 (define (error/no-fit who size val signed?)
   (error who (string-append "integer does not fit into requested ~a bytes"
@@ -109,65 +96,64 @@
 
 ;; ============================================================
 
-(define (integer->bytes val size signed? big-endian?)
+(define (integer->bytes val size signed? [big-endian? #t]
+                        [dest (make-bytes size)] [start 0]
+                        #:who [who 'integer->bytes])
+  (unless (< (+ start size) (bytes-length dest))
+    (error who (string-append "byte string length is shorter than starting position plus size"
+                              "\n  byte string length: ~s"
+                              "\n  starting position: ~s"
+                              "\n  size: ~s")
+           (bytes-length dest) start size))
+  (unless (integer-bytes-length<=? val size signed?)
+    (error/no-fit who size val signed?))
   (case size
-    [(2 4 8) (integer->integer-bytes val size signed? big-endian?)]
-    [(#f)
-     (define bits-needed
-       (max 1 (+ (integer-length val) (if signed? 1 0))))
-     (integer->bytes val (quotient/round-up bits-needed 8) signed? big-endian?)]
+    [(2 4 8) (integer->integer-bytes val size signed? big-endian? dest start)]
     [else
-     (if signed?
-         (check-int 'integer->bytes size val)
-         (check-uint 'integer->bytes size val))
-     (define buf (make-bytes size 0))
-     (for ([i (in-range size)])
-       (define bufi (if big-endian? (- size i 1) i))
-       (define biti (* i 8))
-       (bytes-set! buf bufi (bitwise-bit-field val biti (+ biti 8))))
-     buf]))
+     ;; Currently (2017-05) Racket src comments say bitwise-bit-field
+     ;; is slow for negative bignums, so convert to unsigned with
+     ;; equivalent bit pattern.
+     (cond [(or (fixnum? val) (not (negative? val)))
+            (integer->bytes* val size signed? big-endian? dest start)]
+           [else
+            (define val* (- (arithmetic-shift 1 size) val))
+            (integer->bytes* val* size #f big-endian? dest start)])]))
 
-(define (bytes->integer buf signed? big-endian?)
-  (case (bytes-length buf)
+(define (integer->bytes* val size signed? big-endian? dest start)
+  (for ([i (in-range size)])
+    (define desti (+ start (if big-endian? (- size i 1) i)))
+    (define biti (* i 8))
+    (bytes-set! buf bufi (bitwise-bit-field val biti (+ biti 8))))
+  dest)
+
+;; ----------------------------------------
+
+(define (bytes->integer src signed? [big-endian? #t]
+                        [start 0] [end (bytes-length src)]
+                        #:who [who 'bytes->integer])
+  (unless (< start (bytes-length src))
+    (raise-range-error who "bytes" "starting " start src 0 (sub1 (bytes-length src))))
+  (unless (<= start end (bytes-length src))
+    (raise-range-error who "bytes" "ending " end src start (sub1 (bytes-length src)) 0))
+  (define size (- end start))
+  (case size
     [(2 4 8)
-     (integer-bytes->integer buf signed? big-endian?)]
+     (integer-bytes->integer src signed? big-endian? start end)]
     [(0) 0]
     [else
-     (define n0 (if (and signed? (>= (bytes-ref buf 0) 128)) -1 0))
-     (cond [big-endian?
-            (for/fold ([acc n0]) ([b (in-bytes buf)])
-              (+ b (arithmetic-shift acc 8)))]
-           [else ;; little-endian
-            (for/fold ([acc n0]) ([b (in-bytes buf (sub1 (bytes-length buf)) -1 -1)])
-              (+ b (arithmetic-shift acc 8)))])]))
+     (define n0 (if (and signed? (>= (bytes-ref buf start) 128)) -1 0))
+     (for/fold ([acc n0]) ([i (in-range size)])
+       (define srci (+ start (if big-endian? i (- size i 1))))
+       (+ (bytes-ref src srci) (arithmetic-shift acc 8)))]))
 
 
-;; ----------------------------------------
-;; Network order (ie, big-endian)
+;; ============================================================
 
-(define (write-int val size [port (current-output-port)])
-  (check-int 'write-int size val)
-  (void (write-bytes (integer->bytes val size #t #t) port)))
-(define (write-uint val size [port (current-output-port)])
-  (check-uint 'write-uint size val)
-  (void (write-bytes (integer->bytes val size #f #t) port)))
+(define (write-integer val size signed? [port (current-output-port)]
+                       [big-endian? #t] #:who [who 'write-integer])
+  (void (write-bytes (integer->bytes val size signed? big-endian? #:who who) port)))
 
-(define (read-int size [port (current-input-port)])
-  (bytes->integer (-read-bytes 'read-int size port) #t #t))
-(define (read-uint size [port (current-input-port)])
-  (bytes->integer (-read-bytes 'read-uint size port) #f #t))
-
-;; ----------------------------------------
-;; Little-endian
-
-(define (write-le-int val size [port (current-output-port)])
-  (check-int 'write-le-int size val)
-  (void (write-bytes (integer->bytes val size #t #f) port)))
-(define (write-le-uint val size [port (current-output-port)])
-  (check-uint 'write-le-uint size val)
-  (void (write-bytes (integer->bytes val size #f #f) port)))
-
-(define (read-le-int size [port (current-input-port)])
-  (bytes->integer (-read-bytes 'read-le-int size port) #t #f))
-(define (read-le-uint size [port (current-input-port)])
-  (bytes->integer (-read-bytes 'read-le-uint size port) #f #f))
+(define (read-integer size signed? [port (current-input-port)]
+                      [big-endian? #t] #:who [who 'read-integer])
+  (let ([src (read-bytes* size port #:who who)])
+    (bytes->integer src signed? big-endian?)))

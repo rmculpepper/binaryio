@@ -1,10 +1,10 @@
 #lang racket/base
-(require "private/common.rkt"
+(require "bytes.rkt"
          "integer.rkt"
          "float.rkt")
-(provide (all-from-out "integer.rkt")
-         (all-from-out "float.rkt")
-         )
+(provide (all-from-out "bytes.rkt")
+         (all-from-out "integer.rkt")
+         (all-from-out "float.rkt"))
 
 ;; TODO:
 ;; - limit parameter for variable-length data (eg, null-terminated string)
@@ -19,3 +19,4 @@
 ;; - VALUE is always first in write-X
 ;; - PORT is always first optional argument (for consistency w/ Racket)
 ;; - no keyword arguments unless extraordinary need
+;; * unlike racket, boolean? enforced on boolean args, to prevent reordering mistakes
