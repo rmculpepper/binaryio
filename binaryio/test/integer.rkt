@@ -3,6 +3,15 @@
          binaryio/integer)
 (provide (all-defined-out))
 
+;; For many random integers of varying sizes, test
+;; - roundtripping via integer->bytes and bytes->integer
+;; - roundtripping via write-integer and read-integer
+;; - sign-extension of int->bytes agrees with int->bytes at larger size
+
+;; For many random byte strings of varying sizes, test
+;; - roundtripping via bytes->integer and integer->bytes
+;; - bytes->integer agrees with sign-extension then bytes->integer
+
 (define PRINT? #f)
 
 (define (random-signed size)
@@ -21,15 +30,14 @@
 (define (test-rw val size signed? be?)
   (define-values (in out) (make-pipe))
   (write-integer val size signed? out be?)
-  (check-equal? (read-integer size signed? in be?) val))
+  (check-equal? (read-integer size signed? in be?) val "write read roundtrip"))
 
 (define (test-extend val size extsize signed? be?)
   (define b1 (integer->bytes val extsize signed? be?))
   (define b2 (make-bytes extsize (if (negative? val) 255 0)))
   (let ([start (if be? (- extsize size) 0)])
     (integer->bytes val size signed? be? b2 start))
-  (check-equal? (bytes->list b1) (bytes->list b2) "extend")
-  (check-equal? b1 b2 "integer->bytes extend"))
+  (check-equal? b1 b2 "integer->bytes, sign extension"))
 
 (define (test-integer val size signed? be?)
   (test-rt val size signed? be?)
@@ -74,7 +82,7 @@
   (define b* (if be? (bytes-append ext b) (bytes-append b ext)))
   (check-equal? (bytes->integer b* signed? be?)
                 (bytes->integer b signed? be?)
-                "bytes extend"))
+                "sign extension, bytes->integer"))
 
 (define (test-bytes b signed? be?)
   (test-bib-rt b signed? be?)
