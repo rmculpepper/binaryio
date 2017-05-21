@@ -22,7 +22,10 @@
     (raise-range-error who "bytes" "starting " start src 0 (bytes-length src)))
   (unless (<= start end (bytes-length src))
     (raise-range-error who "bytes" "ending " end src start (bytes-length src) 0))
-  (write-bytes src port start end) ;; check that src has no \0 bytes?
+  (for ([b (in-bytes src start end)] [i (in-range start end)])
+    (when (zero? b)
+      (error who "byte string contains null byte\n  byte string: ~e\n  at index: ~s" src i)))
+  (write-bytes src port start end)
   (void (write-byte 0 port)))
 
 (define (read-null-terminated-bytes [port (current-input-port)]
