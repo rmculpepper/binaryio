@@ -10,11 +10,6 @@
 ;; - limit parameter for variable-length data (eg, null-terminated string)
 ;; - call/exhaust-input raise error if port not empty when returns
 
-;; checked-{string,bytes} -- error if shorter before eof
-;; null-terminated-{string,bytes}
-;; {string,bytes}-to-eof
-
-
 ;; Convention on argument order:
 ;; - VALUE is always first in write-X
 ;; - PORT is always first optional argument (for consistency w/ Racket)
