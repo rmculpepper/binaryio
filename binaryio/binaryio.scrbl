@@ -32,15 +32,13 @@ This module combines the exports of @racketmodname[binaryio/bytes],
                       [in input-port? (current-input-port)])
          bytes?]{
 
-Like @racket[read-bytes], but returns a bytestring of exactly
+Like @racket[read-bytes], but returns a byte string of exactly
 @racket[len] bytes. If fewer than @racket[len] bytes are available
 before the end of input, an exception is raised.
 
 @examples[
 #:eval the-eval
-(define-values (in out) (make-pipe))
-(write-bytes #"abcde" out)
-(close-output-port out)
+(define in (open-input-bytes #"abcde"))
 (read-bytes* 4 in)
 (eval:error (read-bytes* 2 in))
 ]
@@ -74,6 +72,7 @@ terminator is found before the end of input, an error is raised.
 (read-null-terminated-bytes in)
 ]
 }
+
 
 @; ----------------------------------------
 @section[#:tag "integer"]{Integers}
@@ -156,8 +155,9 @@ end of input, an error is raised.
 Equivalent to @racket[(bytes->integer (read-bytes* size in) signed? big-endian?)].
 }
 
+
 @; ----------------------------------------
-@section[#:tag "float"]{Floating-point numbers}
+@section[#:tag "float"]{Floating-point}
 
 @defmodule[binaryio/float]
 
@@ -177,3 +177,5 @@ Equivalent to @racket[(write-bytes (real->floating-point-bytes val size big-endi
 
 Equivalent to @racket[(floating-point-bytes->real (read-bytes* size in) big-endian?)].
 }
+
+@(close-eval the-eval)
