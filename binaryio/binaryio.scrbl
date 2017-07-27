@@ -86,8 +86,9 @@ terminator is found before the end of input, an error is raised.
          bytes?]{
 
 Like @racket[integer->integer-bytes], except that arbitrary
-@racket[size] arguments are supported, and the default byte order is
-always big endian (network byte order) rather than system-dependent.
+@racket[size] arguments are supported, and @racket[big-endian?]
+defaults to @racket[#t] (network byte order) rather than the host byte
+order.
 
 @examples[
 #:eval the-eval
@@ -103,9 +104,9 @@ always big endian (network byte order) rather than system-dependent.
          exact-integer?]{
 
 Like @racket[integer-bytes->integer], except that arbitrary
-sizes---that is, @racket[(- end start)]---are supported, and the
-default byte order is always big endian (network byte order) rather
-than system-dependent.
+sizes---that is, @racket[(- end start)]---are supported, and
+@racket[big-endian?] defaults to @racket[#t] (network byte order)
+rather than the host byte order.
 }
 
 @defproc[(integer-bytes-length [val exact-integer?] [signed? boolean?])
