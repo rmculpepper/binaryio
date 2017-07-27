@@ -49,3 +49,7 @@
     (cond [(eof-object? next) (err/eof)]
           [(zero? next) (get-output-bytes out)]
           [else (begin (write-byte next out) (loop (add1 i)))])))
+
+;; if limit = +inf, then could also use regexp-match:
+;;   (regexp-match #"\0" port 0 #f match-out), (get-output-bytes match-out)
+;; FIXME: test which is faster
