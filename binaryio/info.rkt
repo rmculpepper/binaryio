@@ -7,7 +7,8 @@
 (define deps
   '(["base" #:version "6.3"]
     "binaryio-lib"
-    "rackunit-lib"))
+    "rackunit-lib"
+    "math-lib"))
 (define implies
   '("binaryio-lib"))
 (define build-deps
