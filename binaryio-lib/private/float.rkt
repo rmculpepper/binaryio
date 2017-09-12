@@ -12,4 +12,4 @@
 
 (define (read-float size [port (current-input-port)]
                     [big-endian? #t] #:who [who 'read-float])
-  (floating-point-bytes->real (read-bytes* size port #:who who)))
+  (floating-point-bytes->real (read-bytes* size port #:who who) big-endian?))
