@@ -1,5 +1,5 @@
 #lang racket/base
-(require "bytes.rkt")
+(require "../private/bytes.rkt")
 (provide integer-bytes-length
          integer-bytes-length<=?
 

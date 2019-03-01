@@ -1,6 +1,6 @@
 #lang racket/base
 (require racket/contract/base
-         "private/integer.rkt")
+         "unchecked/integer.rkt")
 
 (provide (contract-out
 
