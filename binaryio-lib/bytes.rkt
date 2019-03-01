@@ -1,3 +1,6 @@
+;; Copyright 2017-2019 Ryan Culpepper
+;; Dual-licensed under Apache 2.0 and MIT terms.
+
 #lang racket/base
 (require racket/contract/base
          "private/bytes.rkt")

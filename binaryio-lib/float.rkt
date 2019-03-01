@@ -1,3 +1,6 @@
+;; Copyright 2017-2018 Ryan Culpepper
+;; Dual-licensed under Apache 2.0 and MIT terms.
+
 #lang racket/base
 (require racket/contract/base
          "private/float.rkt")
