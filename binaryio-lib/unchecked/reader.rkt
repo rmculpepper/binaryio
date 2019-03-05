@@ -174,7 +174,7 @@
 (define (b-read-byte br #:who [who 'b-read-byte])
   (-check-read-len br who 1)
   (define b (read-byte (binary-reader-in br)))
-  (cond [(eof-object? b) (-short-read br who #"" 0 0)]
+  (cond [(eof-object? b) (-short-read br who 1 #"" 0 0)]
         [else (begin (-advance br 1) b)]))
 
 (define (b-read-integer br size signed? [big-endian? #t] #:who [who 'b-read-integer])
