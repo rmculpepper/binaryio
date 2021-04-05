@@ -296,6 +296,16 @@ limit, decremented by the number of bytes read since the current limit
 was pushed.
 }
 
+@defproc[(b-call/save-limit [br binary-reader?]
+                            [proc (-> any)])
+         any]{
+
+Saves the current limit stack of @racket[br] and calls @racket[proc], restoring
+@racket[br]'s limit stack when the call to @racket[proc] returns normally or
+escapes.
+
+@history[#:added "1.2"]}
+
 @defproc[(b-check-exhausted [br binary-reader?] [what (or/c string? #f)])
          void?]{
 
@@ -356,6 +366,25 @@ bytes @emph{without} the NUL terminator. If no NUL terminator is found
 before the current limit or the end of input is reached, the binary
 reader's error handler is used to raise an error.
 }
+
+@defproc[(b-read-bytes-line+eol [br binary-reader?]
+                                [eol-mode (or/c 'linefeed 'return 'return-linefeed 'any 'any-one)])
+         (values bytes? bytes?)]{
+
+Reades bytes until a line ending is found, as determined by
+@racket[eol-mode]. Returns the line contents and the line ending as separate
+byte strings. If no line ending is found before the current limit or the end of
+input is reached, the binary reader's error handler is used to raise an error.
+
+@history[#:added "1.2"]}
+
+@defproc[(b-read-bytes-line [br binary-reader?]
+                            [eol-mode (or/c 'linefeed 'return 'return-linefeed 'any 'any-one)])
+         bytes?]{
+
+Like @racket[b-read-bytes-line+eol] but does not return the line ending.
+
+@history[#:added "1.2"]}
 
 @; ----------------------------------------
 @section[#:tag "fixup-port"]{Fixup Ports}

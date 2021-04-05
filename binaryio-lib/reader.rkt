@@ -27,6 +27,8 @@
            (-> binary-reader? exact-nonnegative-integer? void?)]
           [b-pop-limit
            (-> binary-reader? void?)]
+          [b-call/save-limit
+           (-> binary-reader? procedure? any)]
           [b-check-exhausted
            (-> binary-reader? (or/c string? #f) void?)]
 
@@ -53,7 +55,12 @@
           [b-read-le-uint (-> binary-reader? exact-positive-integer? exact-integer?)]
 
           [b-read-nul-terminated-bytes (-> binary-reader? bytes?)]
+          [b-read-bytes-line (-> binary-reader? eol-mode/c bytes?)]
+          [b-read-bytes-line+eol (-> binary-reader? eol-mode/c (values bytes? bytes?))]
           ))
 
 (define error-handler/c
   (->* [binary-reader? symbol? string?] [] #:rest list? none/c))
+
+(define eol-mode/c
+  (or/c 'linefeed 'return 'return-linefeed 'any 'any-one))

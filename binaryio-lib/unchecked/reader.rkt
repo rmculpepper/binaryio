@@ -105,7 +105,7 @@
   (define new-limit (+ rel-limit (binary-reader-got br)))
   (define old-limit (binary-reader-limit br))
   (when (and old-limit (> new-limit old-limit))
-    (error 'push-limit "new limit is beyond existing limit\n  new: ~s\n  old: ~s"
+    (error 'b-push-limit "new limit is beyond existing limit\n  new: ~s\n  old: ~s"
            rel-limit (b-get-limit br)))
   (set-binary-reader-limstack! br (cons old-limit (binary-reader-limstack br)))
   (set-binary-reader-limit! br new-limit))
@@ -113,7 +113,7 @@
 (define (b-pop-limit br)
   (define limstack (binary-reader-limstack br))
   (unless (pair? limstack)
-    (error 'pop-limit "empty limit stack"))
+    (error 'b-pop-limit "empty limit stack"))
   (set-binary-reader-limit! br (car limstack))
   (set-binary-reader-limstack! br (cdr limstack)))
 
@@ -254,3 +254,21 @@
   (unless (port-commit-peeked (add1 len-before-terminator) progress always-evt in)
     (-error br who "commit peeked failed due to concurrent read"))
   buf)
+
+;; Note: unlike read-bytes-line, fails if EOF encountered before EOL
+(define (b-read-bytes-line br eol-mode #:who [who 'b-read-bytes-line+eol])
+  (let-values ([(bs eol) (b-read-bytes-line+eol br eol-mode #:who who)]) bs))
+
+(define (b-read-bytes-line+eol br eol-mode #:who [who 'b-read-bytes-line+eol])
+  (define out (open-output-bytes))
+  (define eol-rx
+    (case eol-mode
+      [(linefeed) #rx#"\n"]
+      [(return) #rx#"\r"]
+      [(return-linefeed) #rx#"\r\n"]
+      [(any) #rx#"\r\n?|\n"]
+      [(any-one) #rx#"\r|\n"]))
+  (cond [(regexp-try-match eol-rx (binary-reader-in br) 0 (b-get-limit br) out)
+         => (lambda (m) (values (get-output-bytes out) (car m)))]
+        [else
+         (-error br who "end of line not found before current limit")]))
