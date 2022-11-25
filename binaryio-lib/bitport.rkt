@@ -5,11 +5,13 @@
 (require racket/contract/base
          (only-in racket/base [exact-nonnegative-integer? nat?])
          (only-in "bitvector.rkt" sbv?)
-         "unchecked/bitport.rkt")
+         (except-in "unchecked/bitport.rkt" bytes-bit-set?)
+         "bytes-bits.rkt")
 
 (define (bit? v) (or (eqv? v 0) (eqv? v 1)))
 
 (provide output-bitport?
+         bytes-bit-set?
 
          (contract-out
           [open-output-bitport
@@ -28,7 +30,4 @@
           [output-bitport-pad
            (->* [output-bitport?]
                 [#:pad sbv?]
-                nat?)]
-
-          [bytes-bit-set?
-           (-> bytes? nat? boolean?)]))
+                nat?)]))

@@ -3,6 +3,7 @@
 
 #lang racket/base
 (require racket/match
+         "bytes-bits.rkt"
          "bitvector.rkt")
 (provide open-output-bitport
          output-bitport?
@@ -62,15 +63,6 @@
   (unless (sbv-empty? (output-bitport-partial bb))
     (error 'output-bitport-pad "internal error: non-empty partial!"))
   padlen)
-
-;; ============================================================
-;; Input
-
-(define (bytes-bit-set? bs biti)
-  (define bytei (quotient biti 8))
-  (define biti-in-byte (remainder biti 8))
-  (define b (bytes-ref bs bytei))
-  (bitwise-bit-set? b (- 7 biti-in-byte)))
 
 ;; ============================================================
 ;; Input Bitport
