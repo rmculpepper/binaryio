@@ -20,4 +20,4 @@
 
 (define name "binaryio")
 (define scribblings
-  '(["binaryio.scrbl" (#;multi-page)]))
+  '(["scribblings/binaryio.scrbl" (multi-page)]))
