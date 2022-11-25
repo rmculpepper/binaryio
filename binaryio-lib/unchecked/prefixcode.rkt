@@ -4,42 +4,35 @@
 #lang racket/base
 (require racket/match
          racket/list
+         "bytes-bits.rkt"
          "bitvector.rkt"
          "bitport.rkt")
 (provide prefixcode-encode
          prefixcode-encode!
          prefixcode-build-decode-tree
          prefixcode-decode
+         prefixcode-decode-list
          prefixcode-decode!
          prefixcode-decode1)
 
 ;; ============================================================
 
-;; A HuffmanEncodeTable is one of
+;; A EncodeTable is one of
 ;; - Hash[Any => SBV]
 ;; - (Listof (cons Any SBV))
 ;; - (Vectorof SBV)
 
-;; prefixcode-encode : PrefixcodeEncodeTable Sequence -> (values Bytes Nat)
-(define (prefixcode-encode ht src #:pad [pad #x00])
-  (define bp (open-output-bitport))
+;; prefixcode-encode : EncodeTable Sequence -> (values Bytes Nat)
+(define (prefixcode-encode ht src [msf? #t] #:pad [pad #x00])
+  (define bp (open-output-bitport msf?))
   (prefixcode-encode! bp ht src)
   (output-bitport-get-output bp #:pad pad))
 
-;; prefixcode-encode! : OutputBitPort PrefixcodeEncodeTable Sequence -> Void
-(define (prefixcode-encode! bp ht src)
-  (check-encode-table 'prefixcode-encode! ht #f)
-  (define get-code
-    (cond [(hash? ht)
-           (lambda (v) (hash-ref ht v #f))]
-          [(list? ht)
-           (lambda (v) (cond [(assoc v ht) => cdr] [else #f]))]
-          [(vector? ht)
-           (lambda (v) (and (exact-nonnegative-integer? v)
-                            (< v (vector-length ht))
-                            (vector-ref ht v)))]))
+;; prefixcode-encode! : OutputBitPort EncodeTable Sequence -> Void
+(define (prefixcode-encode! bp et src)
+  (check-encode-table 'prefixcode-encode! et #f)
   (define (encode1 v)
-    (define code (get-code v))
+    (define code (encode-table-lookup et v))
     (cond [(exact-nonnegative-integer? code) code]
           ;; Warning: This error can be wrong if table is mutated...
           [else (error 'prefixcode-encode! "no code for value\n  value: ~e" v)]))
@@ -52,6 +45,14 @@
         [else
          (for ([v src])
            (output-bitport-write-sbv bp (encode1 v)))]))
+
+;; encode-table-lookup : EncodeTable Any -> (U SBV #f)
+(define (encode-table-lookup et v)
+  (cond [(vector? et) (and (exact-nonnegative-integer? v)
+                           (< v (vector-length et))
+                           (vector-ref et v))]
+        [(hash? et) (hash-ref et v #f)]
+        [else (cond [(assoc v et) => cdr] [else #f])]))
 
 (define (check-encode-table who ht convert-to-list?)
   (define (bad) (error who "bad encoding table\n  given: ~e" ht))
@@ -67,7 +68,7 @@
 
 ;; ============================================================
 
-;; A PrefixcodeDecodeTree is (vector { DecInstr DecInstr } ...)
+;; A DecodeTree is (vector { DecInstr DecInstr } ...)
 ;; where DecInstr is one of
 ;; - 0              -- means invalid
 ;; - EvenPosFixnum  -- index of next branch node
@@ -77,7 +78,7 @@
 ;; This representation was chosen so that if the values are
 ;; readable/quotable, the tree representation is readable/quotable.
 
-;; prefixcode-build-decode-tree : PrefixcodeEncodeTable -> HDT
+;; prefixcode-build-decode-tree : EncodeTable -> DecodeTree
 ;; PRE: no duplicate codes, actually a prefix code
 (define (prefixcode-build-decode-tree ht)
   (begin (define make-entry cons) (define entry-value car) (define entry-code cdr))
@@ -116,13 +117,12 @@
   (let ([vec (make-vector next-index 0)]) ;; Unrecorded instructions are BAD.
     (for ([(index value) (in-hash h)])
       (vector-set! vec index value))
-    vec))
-
-(define (bytes-bit-length bs) (* 8 (bytes-length bs)))
+    (vector->immutable-vector vec)))
 
 (define (prefixcode-decode hdt bs
                            [start-biti 0]
                            [end-biti (bytes-bit-length bs)]
+                           [msf? #t]
                            #:end [end-code #f]
                            #:handle-error [handle-error default-prefixcode-decode-error])
   (define out (open-output-bytes))
@@ -130,15 +130,28 @@
                       #:end end-code #:handle-error handle-error)
   (get-output-bytes out))
 
+(define (prefixcode-decode-list hdt bs
+                                [start-biti 0]
+                                [end-biti (bytes-bit-length bs)]
+                                [msf? #t]
+                                #:end [end-code #f]
+                                #:handle-error [handle-error default-prefixcode-decode-error])
+  (define acc null)
+  (define (add! v) (set! acc (cons v acc)))
+  (prefixcode-decode! add! hdt bs start-biti end-biti msf?
+                      #:end end-code #:handle-error handle-error)
+  (reverse acc))
+
 (define (prefixcode-decode! output hdt bs
                             [start-biti 0]
                             [end-biti (bytes-bit-length bs)]
+                            [msf? #t]
                             #:end [end-code #f]
                             #:handle-error [handle-error default-prefixcode-decode-error])
   (define (loop biti)
     (cond [(< biti end-biti)
            (define-values (status new-biti value)
-             (prefixcode-decode1 hdt bs biti end-biti #:end end-code))
+             (prefixcode-decode1 hdt bs biti end-biti msf? #:end end-code))
            (case status
              [(ok)
               (cond [(output-port? output)
@@ -167,10 +180,11 @@
 (define (prefixcode-decode1 hdt bs
                             [start-biti 0]
                             [end-biti (bytes-bit-length bs)]
+                            [msf? #t]
                             #:end [end-code #f])
   (define (branch-loop biti dtindex rprefix)
     (cond [(< biti end-biti)
-           (if (bytes-bit-set? bs biti)
+           (if (bytes-bit-set? bs biti msf?)
                (loop (add1 biti) (+ dtindex 1) (sbv-cons 1 rprefix))
                (loop (add1 biti) (+ dtindex 0) (sbv-cons 0 rprefix)))]
           [(and end-code (sbv-prefix? (sbv-reverse rprefix) end-code))
