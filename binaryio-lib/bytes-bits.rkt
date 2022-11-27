@@ -4,6 +4,7 @@
 #lang racket/base
 (require racket/contract/base
          (only-in racket/base [exact-nonnegative-integer? nat?])
+         (only-in "bitvector.rkt" sbv?)
          "unchecked/bytes-bits.rkt")
 
 (provide (contract-out
@@ -13,6 +14,8 @@
            (->* [bytes? nat?] [boolean?] boolean?)]
           [bytes-set-bit!
            (->* [(and/c bytes? (not/c immutable?)) nat? boolean?] [boolean?] any)]
+          [bytes-bits->sbv
+           (->* [bytes?] [nat? (or/c #f nat?) boolean?] sbv?)]
           [bytes-bits->string
            (->* [bytes?] [nat? (or/c #f nat?) boolean?] string?)]
           [string->bytes-bits
