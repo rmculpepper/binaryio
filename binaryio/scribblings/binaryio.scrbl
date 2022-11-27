@@ -24,3 +24,4 @@ This module combines the exports of @racketmodname[binaryio/bytes],
 @include-section["bitport.scrbl"]
 @include-section["bytes-bits.scrbl"]
 @include-section["prefixcode.scrbl"]
+@include-section["huffman.scrbl"]
