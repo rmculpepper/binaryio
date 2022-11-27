@@ -18,33 +18,33 @@
 ;; ============================================================
 ;; Output Bitport
 
-;; A OutputBitport is (output-bitport ByteOutputPort ShortBitvector Nat)
-(struct output-bitport (out partial) #:mutable)
+;; A OutputBitport is (output-bitport ByteOutputPort Boolean ShortBitvector Nat)
+(struct output-bitport (out msf? partial) #:mutable)
 
-(define (open-output-bitport)
-  (output-bitport (open-output-bytes) empty-sbv))
+(define (open-output-bitport [msf? #t])
+  (output-bitport (open-output-bytes) msf? empty-sbv))
 
 (define (output-bitport-write-bit bb bit)
   (output-bitport-write-sbv bb (make-sbv bit 1)))
 
 (define (output-bitport-write-sbv bb sbv)
-  (match-define (output-bitport out partial) bb)
+  (match-define (output-bitport out msf? partial) bb)
   (define partial* (sbv-append partial sbv))
-  (set-output-bitport-partial! bb (-flush-partial partial* out)))
+  (set-output-bitport-partial! bb (-flush-partial partial* out msf?)))
 
-(define (-flush-partial partial out)
+(define (-flush-partial partial out msf?)
   (define len (sbv-length partial))
   (define blen (quotient len 8))
   (for ([i (in-range blen)])
     (define flush-byte (sbv-bit-field partial (* i 8) (* (add1 i) 8)))
-    (define flush-byte* (reverse-byte flush-byte))
+    (define flush-byte* (if msf? (reverse-byte flush-byte) flush-byte))
     (write-byte flush-byte* out))
   (sbv-shift partial (* blen -8)))
 
 ;; output-bitport-get-output : OutputBitPort -> (values Bytes Nat)
 ;; Returns bytes and end bit index.
 (define (output-bitport-get-output bb #:reset? [reset? #f] #:pad [pad-sbv empty-sbv])
-  (match-define (output-bitport out partial) bb)
+  (match-define (output-bitport out msf? partial) bb)
   (define padlen (output-bitport-pad bb #:pad pad-sbv))
   (define bs (get-output-bytes out reset?))
   (define end (- (* 8 (bytes-length bs)) padlen))
@@ -56,7 +56,7 @@
   (values bs end))
 
 (define (output-bitport-pad bb #:pad [pad-sbv empty-sbv])
-  (match-define (output-bitport out partial) bb)
+  (define partial (output-bitport-partial bb))
   (define len (sbv-length partial))
   (define padlen (- (* (quotient (+ len 7) 8) 8) len))
   (output-bitport-write-sbv bb (make-sbv (sbv-bit-field pad-sbv 0 padlen) padlen))

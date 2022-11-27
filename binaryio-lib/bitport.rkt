@@ -15,7 +15,7 @@
 
          (contract-out
           [open-output-bitport
-           (-> output-bitport?)]
+           (->* [] [boolean?] output-bitport?)]
           [output-bitport-partial
            (-> output-bitport? sbv?)]
           [output-bitport-write-bit

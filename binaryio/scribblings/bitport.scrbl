@@ -23,10 +23,14 @@ accumulates bits and packs them into a byte string.
 Returns @racket[#t] if @racket[v] is an output bitport, @racket[#f] otherwise.
 }
 
-@defproc[(open-output-bitport)
+@defproc[(open-output-bitport [msf? boolean? #t])
          output-bitport?]{
 
 Creates a new empty output bitport.
+
+If @racket[msf?] is true, then the bytes produced by the bitport (through
+@racket[output-bitport-get-output]) represents the sequence in @tech{most
+significant first} bit order.
 }
 
 @defproc[(output-bitport-partial [bp output-bitport?]) sbv?]{
