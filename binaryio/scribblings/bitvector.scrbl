@@ -26,9 +26,11 @@ is represented as the integer
    (* _b_L-1 (arithmetic-shift 1 (+ _L-1 SBV-LENGTH-BITS))))
 ]
 where @racket[SBV-LENGTH-BITS] is currently @racket[16]. That is, a bitvector is
-represented as a length field plus a shifted @emph{little-endian} encoding of
-its bits (the first bit of the bitvector is represented by the @emph{least}
-significant bit of the encoded number, before shifting).
+represented as a length field plus a shifted, nonnegative integer encoding of its
+contents. Note that the first bit of the bitvector corresponds to the @emph{least}
+significant bit of the ``payload'' integer. This is roughly analogous to the
+relationship between an integer and its encoding using @emph{little-endian} byte
+order. (See also @tech{least significant first} bit order.)
 
 Consequently, bitvectors up to about 46 bits are represented using fixnums (on
 64-bit versions of Racket), and only bitvectors up to @racket[(sub1 (expt 2
@@ -42,8 +44,8 @@ Number of bits used to represent the length of a bitvector.
 @defthing[SBV-LENGTH-BOUND exact-nonnegative-integer?
                            #:value @#,(racketvalfont (number->string (expt 2 16)))]{
 
-Bound for representable bitvector lengths. Specifically, a length must be
-@emph{strictly less than} @racket[SBV-LENGTH-BOUND] to be representable.
+Bound for representable bitvector lengths. Specifically, a bitvector's length
+must be strictly less than @racket[SBV-LENGTH-BOUND] to be representable.
 }
 
 @defproc[(sbv? [v any/c]) boolean?]{
@@ -71,10 +73,9 @@ results if given non-canonical bitvector values.
                    [bitlength exact-nonnegative-integer?])
          sbv?]{
 
-Returns @racket[#t] if @racket[v] is a @tech{short bitvector}, @racket[#f]
-otherwise. The number @racket[le-bits] is interpreted in a @emph{little-endian}
-fashion: the first bit of the bitvector is the @emph{least} significant bit of
-@racket[le-bits].
+Returns a @tech{short bitvector} whose length is @racket[bitlength] and whose
+elements are the bits representing the integer @racket[le-bits], starting with
+the @emph{least} significant bit.
 
 If @racket[le-bits] has a bit set after the first @racket[bitlength] bits, then
 the result is non-canonical (see @racket[canonical-sbv?]).
@@ -89,9 +90,11 @@ raised.
                       [bitlength exact-nonnegative-integer?])
          sbv?]{
 
-Like @racket[make-sbv], but interprets @racket[be-bits] in a @emph{big-endian}
-fashion: the first bit of the bitvector is the @emph{most} significant bit of
-@racket[be-bits] (interpreted as a @racket[bitlength]-bit number).
+Like @racket[make-sbv], but the elements of the bitvector are the bits
+representing the integer @racket[be-bits] starting with the @emph{most}
+significant bit (as a @racket[bitlength]-bit number). This is roughly analogous
+to the relationship between an integer and its encoding using @emph{big-endian}
+byte order, thus the name @racket[make-be-sbv].
 
 Equivalent to @racket[(sbv-reverse (make-sbv be-bits bitlength))].
 
@@ -116,7 +119,9 @@ Returns the length of the bitvector.
 
 @defproc[(sbv-bits [sbv sbv?]) exact-nonnegative-integer?]{
 
-Returns the little-endian encoding of the bitvector's bits.
+Returns the bitvector's contents, encoded as a nonnegative integer. The first
+element of the bitvector corresponds to the integer's @emph{least} significant
+bit.
 
 @examples[#:eval the-eval
 (sbv-bits (string->sbv "1011"))
@@ -127,8 +132,9 @@ Returns the little-endian encoding of the bitvector's bits.
                         [end exact-nonnegative-integer?])
          exact-nonnegative-integer?]{
 
-Returns the little-endian encoding of the bitvector's bits from @racket[start]
-(inclusive) to @racket[end] (exclusive).
+Returns the bitvector's contents from @racket[start] (inclusive) to @racket[end]
+(exclusive), encoded as a nonnegative integer. The element of @racket[sbv] at
+index @racket[start] corresponds to the integer's @emph{least} significant bit.
 
 If @racket[end] is greater than @racket[(sbv-length sbv)], then the ``out of
 range'' bits are set to zero.
