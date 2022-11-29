@@ -34,9 +34,6 @@
         [(isymbol? a) (if (isymbol? b) (symbol<=? a b) #t)]
         [else (eqv? a b)]))
 
-(define (datum-min a b)
-  (if (datum<=? a b) a b))
-
 ;; ----------------------------------------
 
 ;; An Alphabet is one of
@@ -47,7 +44,9 @@
 ;; and negative weights are clipped to 0.
 
 ;; make-huffman-code : Alphabet -> EncodeTable
+;; Note: options not currently allowed by main module's contract.
 (define (make-huffman-code alphabet
+                           #:canonical? [canonical? #t]
                            #:convert? [convert? #t])
   (define h (make-heap tree<=?))
   (define (add! v w) (heap-add! h (leaf (max w 0) v)))
@@ -60,7 +59,11 @@
         [else
          (for ([s (in-list alphabet)])
            (add! (car s) (cdr s)))])
-  (define code (tree->canonical-code (heap->huffman-tree h)))
+  (define tree (heap->huffman-tree h))
+  (define code
+    (if canonical?
+        (tree->canonical-code tree)
+        (tree->direct-code tree)))
   (list->encode-table code
                       (cond [(not convert?) '(list)]
                             [(vector? alphabet) '(vector)]
@@ -76,9 +79,13 @@
         [else
          (define t2 (heap-min h))
          (heap-remove-min! h)
-         (heap-add! h (node (+ (proto-w t1) (proto-w t2))
-                            (datum-min (proto-v t1) (proto-v t2))
-                            t1 t2))
+         (let ([w (+ (proto-w t1) (proto-w t2))]
+               [v1 (proto-v t1)]
+               [v2 (proto-v t2)])
+           (heap-add! h
+                      (if (datum<=? v1 v2)
+                          (node w v1 t1 t2)
+                          (node w v2 t2 t1))))
          (heap->huffman-tree h)]))
 
 ;; tree->direct-code : Tree -> (Listof (cons Datum SBV))
