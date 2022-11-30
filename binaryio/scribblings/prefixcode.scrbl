@@ -25,6 +25,7 @@ See @racketmodname[binaryio/huffman] for support for computing such codes.
                                                 (listof (cons/c any/c sbv?))
                                                 (vectorof sbv?))]
                             [input sequence?]
+                            [msf? boolean? #t]
                             [#:pad pad-sbv sbv? empty-sbv])
          (values bytes? exact-nonnegative-integer?)]{
 
@@ -44,6 +45,10 @@ The @racket[encode-table] must be one of the following:
 ]
 Each code in the table must be unique, and the set of codes must form a valid
 prefix code. Otherwise, the results of encoding and decoding are unpredictable.
+
+If @racket[msf?] is @racket[#t] (the default), then bits within each byte are
+added in @tech{most significant first} order. If @racket[msf?] is @racket[#f],
+then bits within each byte are added in @tech{least significant first} order.
 
 @examples[#:eval the-eval
 (require binaryio/examples/hpack)
@@ -83,6 +88,7 @@ quotable).
                             [bs bytes?]
                             [start-bit-index exact-nonnegative-integer? 0]
                             [end-bit-index exact-nonnegative-integer? (* 8 (bytes-length bs))]
+                            [msf? boolean? #t]
                             [#:end end-code (or/c sbv? #f) #f]
                             [#:handle-error handle-error
                                             (-> (or/c 'bad 'incomplete)
@@ -132,6 +138,7 @@ exception).
                              [bs bytes?]
                              [start-bit-index exact-nonnegative-integer? 0]
                              [end-bit-index exact-nonnegative-integer? (* 8 (bytes-length bs))]
+                             [msf? boolean? #t]
                              [#:end end-code (or/c sbv? #f) #f]
                              [#:handle-error handle-error
                                              (-> (or/c 'bad 'incomplete)
@@ -163,10 +170,35 @@ is the result of the call to @racket[handle-error].
 (prefixcode-decode! void hpack-decode-tree enc #:handle-error list)
 ]}
 
+@defproc[(prefixcode-decode-list [decode-tree any/c]
+                                 [bs bytes?]
+                                 [start-bit-index exact-nonnegative-integer? 0]
+                                 [end-bit-index exact-nonnegative-integer? (* 8 (bytes-length bs))]
+                                 [msf? boolean? #t]
+                                 [#:end end-code (or/c sbv? #f) #f]
+                                 [#:handle-error handle-error
+                                                 (-> (or/c 'bad 'incomplete)
+                                                     exact-nonnegative-integer?
+                                                     exact-nonnegative-integer?
+                                                     sbv?
+                                                     any)
+                                                 (lambda (mode start end code) (error ....))])
+         list?]{
+
+Like @racket[prefixcode-decode], but decodes the input to a list. This allows
+values other than bytes, characters, and character strings to be conveniently
+decoded.
+
+Note that if @racket[handle-error] returns normally, its result is discarded, so
+it is recommended that @racket[handle-error] escape (for example, by raising an
+exception).
+}
+
 @defproc[(prefixcode-decode1 [decode-tree any/c]
                              [bs bytes?]
                              [start-bit-index exact-nonnegative-integer? 0]
                              [end-bit-index exact-nonnegative-integer? (* 8 (bytes-length bs))]
+                             [msf? boolean? #t]
                              [#:end end-code (or/c sbv? #f) #f])
          (values (or/c 'ok 'bad 'end 'incomplete) exact-nonnegative-integer? any/c)]{
 
@@ -174,23 +206,25 @@ Like @racket[prefixcode-decode], but decodes a single value from the input. The
 result is one of the following:
 @itemlist[
 
-@item{@racket[(values 'ok _next-bit-index _value)] --- the bits from
-@racket[start-bit-index] to @racket[_next-bit-index] represent the value
-@racket[_value]}
+@item{@racket[(values 'ok _next-bit-index _value)] --- The bits from
+@racket[start-bit-index] (inclusive) to @racket[_next-bit-index] (exclusive)
+represent the code for @racket[_value].}
 
-@item{@racket[(values 'bad _next-bit-index _bad-code)] --- the bits from
+@item{@racket[(values 'bad _next-bit-index _bad-code)] --- The bits from
 @racket[start-bit-index] to @racket[_next-bit-index] do not represent a valid
-code (or its prefix); @racket[_bad-code] contains those bits as a bitvector}
+code or its prefix. The @racket[_bad-code] result contains those bits as a
+bitvector.}
 
-@item{@racket[(values 'end _next-bit-index _incomplete-code)] --- the bits from
-@racket[start-bit-index] to @racket[_next-bit-index] represent an incomplete
-prefix of @racket[end-code]; @racket[_incomplete-code] contains those bits as a
-bitvector}
-
-@item{@racket[(values 'incomplete _next-bit-index _incomplete-code)] --- the
+@item{@racket[(values 'incomplete _next-bit-index _incomplete-code)] --- The
 bits from @racket[start-bit-index] to @racket[_next-bit-index] represent an
-incomplete code, but it is not a prefix of @racket[end-code];
-@racket[_incomplete-code] contains those bits as a bitvector}
+incomplete code, but it is not a prefix of @racket[end-code]. The
+@racket[_incomplete-code] result contains those bits as a bitvector.}
+
+@item{@racket[(values 'end _next-bit-index _final-code)] --- The bits from
+@racket[start-bit-index] to @racket[_next-bit-index] represent a prefix of
+@racket[end-code] --- possibly all of @racket[end-code], possibly empty (if
+@racket[start-bit-index] equals @racket[end-bit-index]). The
+@racket[_final-code] result contains those bits as a bitvector.}
 
 ]
 
