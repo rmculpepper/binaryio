@@ -37,9 +37,10 @@
 ;; ----------------------------------------
 
 ;; An Alphabet is one of
-;; - (Listof (cons Datum Real))
-;; - (Hash Datum => Real)
-;; - (Vectorof Real)
+;; - (Listof (cons Datum Real/#f))
+;; - (Hash Datum => Real/#f)
+;; - (Vectorof Real/#f)
+;; Weight=#f elements are dropped/ignored.
 ;; Zero-weight elements are still included in the code,
 ;; and negative weights are clipped to 0.
 
@@ -51,13 +52,13 @@
   (define h (make-heap tree<=?))
   (define (add! v w) (heap-add! h (leaf (max w 0) v)))
   (cond [(hash? alphabet)
-         (for ([(v w) (in-hash alphabet)])
+         (for ([(v w) (in-hash alphabet)] #:when w)
            (add! v w))]
         [(vector? alphabet)
-         (for ([w (in-vector alphabet)] [v (in-naturals)])
+         (for ([w (in-vector alphabet)] [v (in-naturals)] #:when w)
            (add! v w))]
         [else
-         (for ([s (in-list alphabet)])
+         (for ([s (in-list alphabet)] #:when (cdr s))
            (add! (car s) (cdr s)))])
   (define tree (heap->huffman-tree h))
   (define code
@@ -135,12 +136,10 @@
       [(vector) (let ([vs (map car et)])
                   (cond [(andmap exact-nonnegative-integer? vs)
                          (define m (apply max vs))
-                         (cond [(= (add1 m) (length vs))
-                                (define vec (make-vector (add1 m) 0))
-                                (for ([e (in-list et)])
-                                  (vector-set! vec (car e) (cdr e)))
-                                vec]
-                               [else #f])]
+                         (define vec (make-vector (add1 m) #f))
+                         (for ([e (in-list et)])
+                           (vector-set! vec (car e) (cdr e)))
+                         (vector->immutable-vector vec)]
                         [else #f]))]
       [(list) et]
       [else #f]))

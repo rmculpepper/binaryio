@@ -20,7 +20,7 @@
 ;; A EncodeTable is one of
 ;; - Hash[Any => SBV]
 ;; - (Listof (cons Any SBV))
-;; - (Vectorof SBV)
+;; - (Vectorof SBV/#f)
 
 ;; prefixcode-encode : EncodeTable Sequence -> (values Bytes Nat)
 (define (prefixcode-encode ht src [msf? #t] #:pad [pad #x00])
@@ -59,11 +59,12 @@
   (define (check v code)
     (unless (exact-nonnegative-integer? code) (bad)))
   (cond [(hash? ht) (for ([(v code) (in-hash ht)]) (check v code))]
-        [(vector? ht) (for ([code (in-vector ht)] [v (in-naturals)]) (check v code))]
+        [(vector? ht) (for ([code (in-vector ht)] [v (in-naturals)] #:when code) (check v code))]
         [(list? ht) (for ([e (in-list ht)]) (match e [(cons v code) (check v code)] [_ (bad)]))])
   (and convert-to-list?
        (cond [(hash? ht) (for/list ([(v code) (in-hash ht)]) (cons v code))]
-             [(vector? ht) (for/list ([code (in-vector ht)] [v (in-naturals)]) (cons v code))]
+             [(vector? ht) (for/list ([code (in-vector ht)] [v (in-naturals)] #:when code)
+                             (cons v code))]
              [(list? ht) ht])))
 
 ;; ============================================================

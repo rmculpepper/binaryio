@@ -44,12 +44,15 @@
 
 (test-case "huffman 3"
   (define alpha3
+    (vector #f 2 1 1 1 1))
+  (define alpha3b
     '((1 . 2)
       (2 . 1)
       (3 . 1)
       (4 . 1)
       (5 . 1)))
   (define h3 (make-huffman-code alpha3 #:convert? #f))
+  (check-equal? (make-huffman-code alpha3b #:convert? #f) h3)
   (define h3d (prefixcode-build-decode-tree h3))
   (check-equal? (code->sexpr h3)
                 '(list
