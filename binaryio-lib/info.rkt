@@ -1,5 +1,5 @@
 ;; Copyright 2017-2019 Ryan Culpepper
-;; Dual-licensed under Apache 2.0 and MIT terms.
+;; SPDX-License-Identifier: Apache-2.0 OR MIT
 
 #lang info
 
@@ -9,6 +9,8 @@
 (define version "1.3")
 (define collection "binaryio")
 (define deps '("base"))
+(define pkg-authors '(ryanc))
+(define license '(Apache-2.0 OR MIT))
 
 ;; ========================================
 ;; collect info

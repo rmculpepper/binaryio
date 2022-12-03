@@ -1,5 +1,5 @@
 ;; Copyright 2019-2022 Ryan Culpepper
-;; Dual-licensed under Apache 2.0 and MIT terms.
+;; SPDX-License-Identifier: Apache-2.0 OR MIT
 
 #lang racket/base
 (require racket/match
