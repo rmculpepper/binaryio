@@ -8,7 +8,8 @@
 
 (define version "1.3")
 (define collection "binaryio")
-(define deps '("base"))
+(define deps '("base"
+               "data-lib"))
 (define pkg-authors '(ryanc))
 (define license '(Apache-2.0 OR MIT))
 
