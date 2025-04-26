@@ -237,6 +237,8 @@
   (define PEEKLEN 50)
   (define (find-nul buf len) ;; -> Nat/#f
     (for/first ([b (in-bytes buf 0 len)] [i (in-naturals)] #:when (zero? b)) i))
+  (define (concurrent-read-error)
+    (-error br who "commit peeked failed due to concurrent read"))
   (define in (binary-reader-in br))
   (define peekbuf (make-bytes PEEKLEN))
   (define progress (port-progress-evt in))
@@ -246,13 +248,16 @@
       (cond [(-limit<? skip limit)
              (define peeklen (if (-limit<=? (+ skip PEEKLEN) limit) PEEKLEN (- limit skip)))
              (define r (b-peek-bytes-avail! br peekbuf skip 0 peeklen #:progress progress #:who who))
-             (cond [(find-nul peekbuf r) => (lambda (nul-pos) (+ skip nul-pos))]
+             (cond [(zero? r) (concurrent-read-error)]
+                   [(find-nul peekbuf r) => (lambda (nul-pos) (+ skip nul-pos))]
                    [else (loop (+ skip r))])]
             [else (-error br who "NUL terminator not found before current limit")])))
   (define buf (make-bytes len-before-terminator))
   (b-peek-bytes! br buf 0 #:progress progress)
-  (unless (port-commit-peeked (add1 len-before-terminator) progress always-evt in)
-    (-error br who "commit peeked failed due to concurrent read"))
+  (define len (add1 len-before-terminator))
+  (unless (port-commit-peeked len progress always-evt in)
+    (concurrent-read-error))
+  (-advance br len)
   buf)
 
 ;; Note: unlike read-bytes-line, fails if EOF encountered before EOL
